@@ -1,13 +1,7 @@
-import {
-  AppBar,
-  Avatar,
-  Box,
-  ButtonBase,
-  Toolbar,
-  Typography,
-} from "@mui/material";
+import { AppBar, Avatar, ButtonBase, Toolbar, Typography } from "@mui/material";
 import { useState } from "react";
 import ProfileImage from "../assets/profileImage.png";
+import { Link } from "react-router";
 
 const Header = () => {
   const [profileImage] = useState<string | undefined>(ProfileImage);
@@ -26,9 +20,15 @@ const Header = () => {
         }}
       >
         {/* 로고 */}
-        <Box>
+        <Link
+          to="/"
+          css={{
+            textDecoration: "none",
+            color: "inherit",
+          }}
+        >
           <Typography variant="h4">Jukebox</Typography>
-        </Box>
+        </Link>
 
         {/* 프로필 버튼 */}
         <ButtonBase
