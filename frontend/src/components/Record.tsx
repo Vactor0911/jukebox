@@ -1,27 +1,44 @@
-import { Box } from "@mui/material";
+import { Box, type BoxProps } from "@mui/material";
 import RecordImage from "../assets/record.png";
 
-interface RecordProps {
-  width?: string | number;
-  height?: string | number;
+interface RecordProps extends BoxProps {
   imageSrc?: string;
+  bgcolor?: string;
 }
 
 const Record = (props: RecordProps) => {
-  const { width = 120, height = 120, imageSrc } = props;
+  const {
+    width = 120,
+    height = 120,
+    imageSrc,
+    bgcolor = "red",
+    ...others
+  } = props;
 
   return (
-    <Box width={width} height={height} position="relative">
-      <Box component="img" src={RecordImage} width="100%" height="100%" />
+    <Box
+      width={width}
+      height={height}
+      position="relative"
+      borderRadius="50%"
+      {...others}
+    >
+      <Box
+        component="img"
+        src={RecordImage}
+        width="100%"
+        height="100%"
+        position="relative"
+        zIndex={2}
+      />
       <Box
         position="absolute"
         top="50%"
         left="50%"
-        width="34%"
-        height="34%"
-        bgcolor="red"
+        width="35%"
+        height="35%"
+        bgcolor={bgcolor}
         borderRadius="50%"
-        zIndex={-1}
         sx={{
           transform: "translate(-50%, -50%)",
           WebkitMask:
