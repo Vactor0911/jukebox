@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
+import { v4 as uuidv4 } from "uuid";
 
 export async function downloadAudio(
   url: string,
@@ -10,6 +11,9 @@ export async function downloadAudio(
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
+
+  // filename을 UUID로 생성
+  const filename = `${uuidv4()}.%(ext)s`;
 
   // yt-dlp 명령어 인자 설정
   const args = [
@@ -30,7 +34,7 @@ export async function downloadAudio(
     "--newline",
     "-o",
     // TODO: 제목을 UUID로 저장하도록 변경 (제목에 따라 파일명이 달라지는 문제 해결)
-    path.join(outputDir, "%(title)s.%(ext)s"),
+    path.join(outputDir, filename),
     url,
   ];
 
