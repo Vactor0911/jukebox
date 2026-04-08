@@ -1,10 +1,17 @@
 import { spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
-import { v4 as uuidv4 } from "uuid";
 
+/**
+ * YouTube URL을 받아서 오디오 파일과 썸네일을 다운로드하는 함수
+ * @param url 다운로드할 YouTube URL
+ * @param fileName 다운로드된 파일의 이름 (UUID로 생성)
+ * @param outputDir 다운로드한 파일을 저장할 디렉토리 (기본값: "./downloads")
+ * @returns 다운로드된 오디오 파일의 경로
+ */
 export async function downloadAudio(
   url: string,
+  fileName: string,
   outputDir: string = "./downloads",
 ): Promise<string> {
   // 출력 디렉토리가 없으면 생성
@@ -13,7 +20,7 @@ export async function downloadAudio(
   }
 
   // filename을 UUID로 생성
-  const filename = `${uuidv4()}.%(ext)s`;
+  const filename = `${fileName}.%(ext)s`;
 
   // yt-dlp 명령어 인자 설정
   const args = [
@@ -82,13 +89,55 @@ export async function downloadAudio(
   return resolvedPath;
 }
 
-// 실행
-// const url = process.argv[2];
-// if (!url) {
-//   console.error("사용법: ts-node download.ts <YouTube URL>");
-//   process.exit(1);
-// }
+/**
+ * YouTube URL에서 오디오 메타데이터를 추출하는 함수
+ * @param url YouTube URL
+ * @returns 오디오 메타데이터 객체 (재생 시간, 파일 크기, 제목, 업로더)
+ */
+export async function getAudioMeta(url: string): Promise<{
+  duration: number;
+  filesize: number | null;
+  title: string;
+  uploader: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("yt-dlp", [
+      "--no-warnings",
+      "--no-playlist",
+      "-f",
+      "bestaudio/best",
+      "--print",
+      "duration",
+      "--print",
+      "filesize_approx",
+      "--print",
+      "title",
+      "--print",
+      "uploader",
+      url,
+    ]);
 
-// downloadAudio(url)
-//   .then((filePath) => console.log(`✅ 완료: ${filePath}`))
-//   .catch((err) => console.error(`❌ 오류: ${err.message}`));
+    let output = "";
+    proc.stdout.on("data", (data: Buffer) => {
+      output += data.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(`yt-dlp 실패 (code ${code})`));
+        return;
+      }
+      const [durationStr, filesizeStr, title, uploader] = output
+        .trim()
+        .split("\n");
+      resolve({
+        duration: parseFloat(durationStr),
+        filesize: filesizeStr === "NA" ? null : parseInt(filesizeStr),
+        title,
+        uploader,
+      });
+    });
+
+    proc.on("error", () => reject(new Error("yt-dlp를 찾을 수 없습니다.")));
+  });
+}
