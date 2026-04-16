@@ -28,12 +28,10 @@ class SongService {
         }
 
         // 데이터베이스에서 노래가 이미 존재하는지 조회
-        const songs = await SongModel.findSongByVideoId(videoId, connection);
+        const song = await SongModel.findSongByVideoId(videoId, connection);
 
         // 이미 존재하는 노래인 경우 기존 데이터 반환
-        if (songs.length > 0 && songs[0] && songs[0].videoId === videoId) {
-          const song = songs[0];
-
+        if (song && song.videoId === videoId) {
           // 기존 노래 재생 일자 업데이트
           const newDate = new Date();
           await SongModel.updateLastPlayedAt(song.uuid, newDate, connection);
@@ -88,17 +86,17 @@ class SongService {
         }
 
         // 다운로드된 파일 경로 로그
-        const song = await SongModel.createSong(
+        const newSong = await SongModel.createSong(
           fileName,
           metadata.title,
           metadata.uploader,
           videoId,
           connection,
         );
-        console.log("생성된 노래 데이터:", song);
+        console.log("생성된 노래 데이터:", newSong);
 
         // 노래 겍체 반환
-        return song;
+        return newSong;
       },
     );
 

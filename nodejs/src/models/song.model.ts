@@ -81,7 +81,7 @@ export class SongModel {
     videoId: string,
     connection: PoolConnection | Pool,
   ) {
-    const [songs] = await connection.execute(
+    const [song] = await connection.execute(
       `
         SELECT song_uuid, title, uploader, video_id, last_played_at
         FROM songs
@@ -90,11 +90,12 @@ export class SongModel {
       [videoId],
     );
 
-    if (!songs) {
-      return [];
+    if (!(song as any[])[0]) {
+      return null;
     }
 
-    return (songs as any[]).map(this.formatSongData);
+    const formattedSong = this.formatSongData((song as any[])[0]);
+    return formattedSong;
   }
 
   /**
