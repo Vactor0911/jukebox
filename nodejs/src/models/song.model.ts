@@ -52,10 +52,10 @@ export class SongModel {
    * 노래 uuid로 노래 데이터 조회
    * @param uuid 노래 uuid
    * @param connection 데이터베이스 연결 객체
-   * @returns 조회된 노래 모델 배열
+   * @returns 조회된 노래 모델
    */
   static async findSongByUuid(uuid: string, connection: PoolConnection | Pool) {
-    const [songs] = await connection.execute(
+    const [song] = await connection.execute(
       `
         SELECT song_uuid, title, uploader, video_id, last_played_at
         FROM songs
@@ -64,11 +64,12 @@ export class SongModel {
       [uuid],
     );
 
-    if (!songs) {
-      return [];
+    if (!(song as any[])[0]) {
+      return null;
     }
 
-    return (songs as any[]).map(this.formatSongData);
+    const formattedSong = this.formatSongData((song as any[])[0]);
+    return formattedSong;
   }
 
   /**
