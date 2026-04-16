@@ -17,7 +17,7 @@ class SongController {
       // 다운로드 결과 반환
       res.json({
         success: true,
-        message: "노래가 성공적으로 추가되었습니다.",
+        message: "노래가 성공적으로 등록되었습니다.",
         data: { song },
       });
     },
