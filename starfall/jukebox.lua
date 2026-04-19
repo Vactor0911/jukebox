@@ -238,7 +238,7 @@ if SERVER then
             wire.ports.Time = data.time
             wire.ports.Length = data.length
             
-            if data.time >= data.length then
+            if math.floor(data.time) >= math.floor(data.length) then
                 playNextSong()
             end
         end
