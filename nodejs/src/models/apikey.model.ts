@@ -25,7 +25,7 @@ export class ApiKeyModel {
     const [key] = await connection.execute(
       `
         SELECT key_uuid, owner_name, owner_steamid64, created_at, status
-        FROM api_keys
+        FROM apikeys
         WHERE key_uuid = ?
       `,
       [uuid],
