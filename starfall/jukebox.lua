@@ -257,10 +257,22 @@ elseif CLIENT then
         net.writeTable(data)
         net.send()
     end
-
-    local function getFade(radius)
-        local fade = radius * 0.75
-        return fade
+    
+    local function calcVolume(radius, volumeBase)
+        local distance = chip():getPos():getDistance(player():getPos())
+        if distance < radius * 0.75 then
+            return volume
+        elseif distance > radius then
+            return 0
+        else
+            return (radius - distance) / (radius * 0.25) * volumeBase
+        end
+    end
+    
+    -- get api key
+    local apikey
+    if player() == owner() and file.exists("jukebox.txt") then
+        apikey = file.read("jukebox.txt")
     end
 
     -- receive requests
@@ -273,7 +285,8 @@ elseif CLIENT then
             -- request youtube music to jukebox web server
             local payload = '{"url":"' .. data.song .. '"}'
             local headers = {
-                ["Content-Type"] = "application/json"
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = apikey
             }
 
             -- send http post request
@@ -284,7 +297,7 @@ elseif CLIENT then
 
                     -- validate response body
                     if not jsonBody.success then
-                        printError("song request error..\n" .. jsonBody.error)
+                        printError("song request error..\n" .. jsonBody.message)
                         return
                     end
 
@@ -309,15 +322,8 @@ elseif CLIENT then
                 headers)
         elseif command == "/volume" then
             volume = data.volume
-            if isValid(snd) then
-                snd:setVolume(data.volume)
-            end
         elseif command == "/radius" then
             radius = data.radius
-            if isValid(snd) then
-                local fade = getFade(radius)
-                snd:setFade(fade, radius)
-            end
         elseif command == "/time" then
             if isValid(snd) then
                 snd:setTime(data.time)
@@ -359,10 +365,9 @@ elseif CLIENT then
             local url = "https://jukebox.vactor0911.dev/musics/" .. data.songUuid .. ".mp3"
             bass.loadURL(url, "3d noblock", function(newSound)
                 snd = newSound
-                snd:setVolume(volume)
-
-                local fade = getFade(radius)
-                snd:setFade(fade, radius)
+                
+                local newVolume = calcVolume(radius, volume)
+                snd:setVolume(newVolume)
             end)
             title = data.title
             uploader = data.uploader
@@ -372,14 +377,18 @@ elseif CLIENT then
     end)
 
     -- sound position interval
-    timer.create("sound_pos", 0.1, 0, function()
+    hook.add("Think", "", function()
         -- validate sound object
         if not isValid(snd) then
             return
         end
 
         -- set sound pos
-        snd:setPos(chip():getPos())
+        snd:setPos(player():getPos())
+        
+        -- set volume
+        local newVolume = calcVolume(radius, volume)
+        snd:setVolume(newVolume)
     end)
 
     -- sound data interval
