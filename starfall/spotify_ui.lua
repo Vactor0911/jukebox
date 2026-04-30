@@ -61,7 +61,7 @@ elseif CLIENT then
     local screen
 
     -- album images
-    local albumPlaceholder = render.createMaterial("https://jukebox.vactor0911.dev/musics/Image.png",
+    local albumPlaceholder = render.createMaterial("https://github.com/Vactor0911/jukebox/releases/download/images-v1/AlbumSample.png?v=1.0w",
         function(mat, _, _, _, layout)
             if mat ~= nil then
                 layout(0, 0, 1024, 1024)
