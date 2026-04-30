@@ -21,12 +21,14 @@ if SERVER then
     local queue = {}
     local history = {}
     local loopState = 0 -- 0: no loop, 1: loop, 2: single loop
+    local historyLoopPointer = nil
+    local currentTime = 0
 
     -- functions
-    local function sendData(data)
+    local function sendData(data, target)
         net.start("sv_cl")
         net.writeTable(data)
-        net.send()
+        net.send(target)
     end
 
     local function playSong(song)
@@ -41,45 +43,15 @@ if SERVER then
         wire.ports.AlbumImageUrl = song ~= nil and "https://jukebox.vactor0911.dev/musics/" .. song.songUuid .. ".jpg" or ""
         wire.ports.Time = 0
         wire.ports.Length = 0
+        wire.ports.Playing = song ~= nil and 1 or 0
+        wire.ports.Paused = 0
+        wire.ports.Ended = song ~= nil and 0 or 1
     end
-
-    local function playNextSong()
-        if (loopState == 1 and #history + #queue == 1) or loopState == 2 then
-            local song = queue[1]
-            playSong(song)
-            return
-        end
-
-        if #queue > 0 then
-            local prevSong = table.remove(queue, 1)
-            table.insert(history, prevSong)
-            wire.ports.Queue = queue
-            wire.ports.History = history
-        end
-
-        if #queue <= 0 then
-            if loopState == 0 then
-                print("song ended")
-                wire.ports.Playing = 0
-                wire.ports.Paused = 0
-                wire.ports.Ended = 1
-
-                playSong()
-                return
-            elseif #history <= 0 then
-                print("history is empty")
-                playSong()
-                return
-            end
-
-            local prevSong = table.remove(history, 1)
-            table.insert(queue, prevSong)
-            wire.ports.Queue = queue
-            wire.ports.History = history
-        end
-
-        local song = queue[1]
-        playSong(song)
+    
+    local function resetTime()
+        local data = createData("/time")
+        data.time = 0
+        sendData(data)
     end
 
     -- wirelinks
@@ -108,6 +80,130 @@ if SERVER then
     wire.ports.Shuffle = 0
     wire.ports.Queue = {}
     wire.ports.History = {}
+    
+    -- service layer
+    local function song(songUrl)
+        local data = createData("/song")
+        data.song = songUrl
+        sendData(data, owner())
+    end
+    
+    local function play()
+        local data = createData("/play")
+        sendData(data)
+    end
+    
+    local function pause()
+        local data = createData("/pause")
+        sendData(data)
+    end
+    
+    local function stop()
+        local data = createData("/stop")
+        sendData(data)
+    end
+    
+    local function volume(volume)
+        wire.ports.Volume = volume
+        
+        local data = createData("/volume")
+        data.volume = volume
+        sendData(data)
+    end
+    
+    local function radius(radius)
+        wire.ports.Radius = radius
+        
+        local data = createData("/radius")
+        data.radius = radius
+        sendData(data)
+    end
+    
+    local function time(time)
+        local data = createData("/time")
+        data.time = time
+        sendData(data)
+    end
+    
+    local function loop(loopState)
+        print("loop set to " .. loopState)
+        wire.ports.Loop = loopState
+        
+        if loopState == 1 then
+            historyLoopPointer = #history + 1
+            print("pointer set to .." .. historyLoopPointer)
+        end
+    end
+    
+    local function lock()
+    end
+    
+    local function playNext()
+        -- move current song to history
+        local currentSong = table.remove(queue, 1)
+        table.insert(history, currentSong)
+        wire.ports.Queue = queue
+        wire.ports.History = history
+        currentTime = 0
+        
+        -- get next song
+        if loopState == 0 then
+            if #queue > 0 then
+                local nextSong = queue[1]
+                playSong(nextSong)
+            else
+                print("song ended")
+                playSong()
+                return
+            end
+        elseif loopState == 1 then
+            if #queue > 0 then
+                local nextSong = queue[1]
+                playSong(nextSong)
+            else
+                local nextSong = table.remove(history, historyLoopPointer)
+                table.insert(queue, nextSong)
+                wire.ports.Queue = queue
+                wire.ports.History = history
+                playSong(nextSong)
+            end
+        elseif loopState == 2 then
+            resetTime()
+        end
+    end
+    
+    local function playPrev()
+        -- return if history & queue is empty
+        if #history <= 0 and #queue <= 0 then
+            return
+        end
+        
+        -- set time to 0 if currentTime is greater than 5 second
+        if currentTime > 5 then
+            resetTime()
+            return
+        end
+        
+        -- set time to 0 if loop is on
+        if (loopState == 1 and #history == 0) or loopState == 2 then
+            resetTime()
+            return
+        end
+
+        -- bring history if loop is off
+        if #history <= 0 then
+            -- set time to 0 if history is empty
+            resetTime()
+            return
+        end
+
+        local prevSong = table.remove(history)
+        table.insert(queue, 1, prevSong)
+        wire.ports.Queue = queue
+        wire.ports.History = history
+        currentTime = 0
+        playSong(prevSong)
+    end
 
     -- process chat commands
     hook.add("PlayerSay", "", function(player, text)
@@ -123,38 +219,35 @@ if SERVER then
         end
 
         -- chat commands
-        local data = createData(command[1])
-
         if command[1] == "/song" then
-            if command[2] == nil then
+            local songUrl = command[2]
+            if songUrl == nil then
                 printError("song url cannot be empty.")
                 return ""
             end
-            data.song = command[2]
-
-            -- request only for owner
-            net.start("sv_cl")
-            net.writeTable(data)
-            net.send(owner())
-            return ""
+            song(songUrl)
+        elseif command[1] == "/play" then
+            play()
+        elseif command[1] == "/pause" then
+            pause()
+        elseif command[1] == "/stop" then
+            stop()
         elseif command[1] == "/volume" then
             --validate format (number)
-            local volume = tonumber(command[2])
-            if not isnumber(volume) then
+            local newVolume = tonumber(command[2])
+            if not isnumber(newVolume) then
                 printError("volume must be a number.")
                 return ""
             end
-            data.volume = volume
-            wire.ports.Volume = volume
+            volume(newVolume)
         elseif command[1] == "/radius" then
             -- validate format (number)
-            local radius = tonumber(command[2])
-            if not isnumber(radius) then
+            local newRadius = tonumber(command[2])
+            if not isnumber(newRadius) then
                 printError("radius must be a number.")
                 return ""
             end
-            data.radius = radius
-            wire.ports.Radius = radius
+            radius(newRadius)
         elseif command[1] == "/time" then
             -- check if the format is mm:ss
             local param = table.concat(command, "", 2)
@@ -166,15 +259,17 @@ if SERVER then
                     printError("invalid time format. (mm:ss or s)")
                     return ""
                 end
-                data.time = minute * 60 + second
+                
+                local newTime = minute * 60 + second
+                time(newTime)
             else
                 -- check is the value is number (second)
-                local time = tonumber(command[2])
-                if not isnumber(time) then
+                local newTime = tonumber(command[2])
+                if not isnumber(newTime) then
                     printError("invalid time format. (mm:ss or s)")
                     return ""
                 end
-                data.time = time
+                time(newTime)
             end
         elseif command[1] == "/loop" then
             -- rotate loop state
@@ -182,38 +277,15 @@ if SERVER then
             if loopState > 2 then
                 loopState = loopState - 3
             end
-            print("loop set to " .. loopState)
-            data.loop = loopState
-            wire.ports.Loop = loopState
-            return ""
+            loop(loopState)
+        elseif command[1] == "/lock" then
+            lock()
         elseif command[1] == "/next" then
-            playNextSong()
-            return ""
+            playNext()
         elseif command[1] == "/prev" then
-            -- set time to 0 if loop is on
-            if (loopState == 1 and #history + #queue == 1) or loopState == 2 then
-                data = createData("/time")
-                data.time = 0
-                sendData(data)
-                return ""
-            end
-
-            -- bring history if loop is off
-            if #history <= 0 then
-                printError("history is empty.")
-                return ""
-            end
-
-            local prevSong = table.remove(history)
-            table.insert(queue, 1, prevSong)
-            wire.ports.Queue = queue
-            wire.ports.History = history
-
-            playSong(prevSong)
-            return ""
+            playPrev()
         end
-
-        sendData(data)
+        
         return ""
     end)
 
@@ -236,10 +308,11 @@ if SERVER then
             wire.ports.Paused = data.paused
             wire.ports.Ended = data.ended
             wire.ports.Time = data.time
+            currentTime = data.time
             wire.ports.Length = data.length
             
             if math.floor(data.time) >= math.floor(data.length) then
-                playNextSong()
+                playNext()
             end
         end
     end)
@@ -382,13 +455,18 @@ elseif CLIENT then
         if not isValid(snd) then
             return
         end
-
-        -- set sound pos
-        snd:setPos(player():getPos())
         
         -- set volume
         local newVolume = calcVolume(radius, volume)
         snd:setVolume(newVolume)
+        
+        -- doesn't need to update pos if volume is less or equal than 0
+        if newVolume <= 0 then
+            return
+        end
+        
+        -- set sound pos
+        snd:setPos(player():getPos())
     end)
 
     -- sound data interval
