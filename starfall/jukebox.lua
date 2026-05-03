@@ -291,8 +291,10 @@ if SERVER then
     end)
     
     -- handle wire inputs
+    local now = timer.systime()
     hook.add("Input", "", function(inputName, value)
-        if isFirstTimePredicted() then
+        -- 0.1sec delay
+        if now + 0.1 > timer.systime() then
             return
         end
         
