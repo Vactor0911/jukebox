@@ -209,7 +209,7 @@ if SERVER then
     end
 
     -- handle chat commands
-    hook.add("PlayerSay", "", function(player, text)
+    hook.add("PlayerSay", "", function(player, text)        
         -- accept command for only owner
         if player ~= owner() then
             return
@@ -292,6 +292,10 @@ if SERVER then
     
     -- handle wire inputs
     hook.add("Input", "", function(inputName, value)
+        if isFirstTimePredicted() then
+            return
+        end
+        
         if inputName == "SongUrl" then
         elseif inputName == "Play" then
             if value == 1 then
