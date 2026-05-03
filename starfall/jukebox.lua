@@ -3,8 +3,7 @@
 --@shared
 --@model models/bull/various/speaker.mdl
 
-local allowCommands = { "/song", "/volume", "/radius", "/time", "/play", "/pause", "/stop",
-    "/lock", "/loop", "/next", "/prev" }
+local allowCommands = { "/song", "/volume", "/radius", "/time", "/play", "/pause", "/stop", "/loop", "/next", "/prev" }
 
 local function createData(command)
     local data = {}
@@ -32,6 +31,8 @@ if SERVER then
     end
 
     local function playSong(song)
+        currentTime = 0
+        
         local data = createData("/play_song")
         data.songUuid = song ~= nil and song.songUuid or nil
         data.title = song ~= nil and song.title or nil
@@ -56,8 +57,8 @@ if SERVER then
 
     -- wirelinks
     wire.adjustInputs(
-        { "SongUrl", "Play", "Pause", "Stop", "Volume", "Time", "Radius", "Loop", "Lock", "PlayNext", "PlayPrev" },
-        { "string", "n", "n", "n", "n", "n", "n", "n", "n", "n", "n" }
+        { "SongUrl", "Play", "Pause", "Stop", "Volume", "Time", "Radius", "Loop", "PlayNext", "PlayPrev" },
+        { "string", "n", "n", "n", "n", "n", "n", "n", "n", "n" }
     )
     wire.adjustOutputs(
         { "Title", "Uploader", "AlbumImageUrl", "Playing", "Loading", "Paused", "Ended", "Volume", "Radius", "Time",
@@ -103,15 +104,17 @@ if SERVER then
         sendData(data)
     end
     
-    local function volume(volume)
-        wire.ports.Volume = volume
+    local function volume(newVolume)
+        wire.ports.Volume = newVolume
         
         local data = createData("/volume")
-        data.volume = volume
+        data.volume = newVolume
         sendData(data)
     end
     
-    local function radius(radius)
+    local function radius(newRadius)
+        local radius = math.floor(newRadius)
+                
         wire.ports.Radius = radius
         
         local data = createData("/radius")
@@ -119,32 +122,35 @@ if SERVER then
         sendData(data)
     end
     
-    local function time(time)
+    local function time(newTime)
         local data = createData("/time")
-        data.time = time
+        data.time = newTime
         sendData(data)
     end
     
-    local function loop(loopState)
-        print("loop set to " .. loopState)
-        wire.ports.Loop = loopState
+    local function loop(newLoopState)
+        local loop = math.floor(newLoopState)
+        wire.ports.Loop = loop
+        loopState = loop
         
-        if loopState == 1 then
+        if loop == 1 then
             historyLoopPointer = #history + 1
-            print("pointer set to .." .. historyLoopPointer)
         end
     end
     
-    local function lock()
-    end
-    
     local function playNext()
+        -- replay if loopState is 2
+        if loopState == 2 then
+            local currentSong = queue[1]
+            playSong(currentSong)
+            return
+        end
+        
         -- move current song to history
         local currentSong = table.remove(queue, 1)
         table.insert(history, currentSong)
         wire.ports.Queue = queue
         wire.ports.History = history
-        currentTime = 0
         
         -- get next song
         if loopState == 0 then
@@ -167,8 +173,6 @@ if SERVER then
                 wire.ports.History = history
                 playSong(nextSong)
             end
-        elseif loopState == 2 then
-            resetTime()
         end
     end
     
@@ -201,11 +205,10 @@ if SERVER then
         table.insert(queue, 1, prevSong)
         wire.ports.Queue = queue
         wire.ports.History = history
-        currentTime = 0
         playSong(prevSong)
     end
 
-    -- process chat commands
+    -- handle chat commands
     hook.add("PlayerSay", "", function(player, text)
         -- accept command for only owner
         if player ~= owner() then
@@ -278,8 +281,6 @@ if SERVER then
                 loopState = loopState - 3
             end
             loop(loopState)
-        elseif command[1] == "/lock" then
-            lock()
         elseif command[1] == "/next" then
             playNext()
         elseif command[1] == "/prev" then
@@ -287,6 +288,40 @@ if SERVER then
         end
         
         return ""
+    end)
+    
+    -- handle wire inputs
+    hook.add("Input", "", function(inputName, value)
+        if inputName == "SongUrl" then
+        elseif inputName == "Play" then
+            if value == 1 then
+                play()
+            end
+        elseif inputName == "Pause" then
+            if value == 1 then
+                pause()
+            end
+        elseif inputName == "Stop" then
+            if value == 1 then
+                stop()
+            end
+        elseif inputName == "Volume" then
+            volume(value)
+        elseif inputName == "Time" then
+            time(value)
+        elseif inputName == "Radius" then
+            radius(value)
+        elseif inputName == "Loop" then
+            loop(value)
+        elseif inputName == "PlayNext" then
+            if value == 1 then
+                playNext()
+            end
+        elseif inputName == "PlayPrev" then
+            if value == 1 then
+                playPrev()
+            end
+        end
     end)
 
     -- receive requests
@@ -414,8 +449,6 @@ elseif CLIENT then
                 snd:pause()
                 snd:setTime(0)
             end
-        elseif command == "/lock" then
-
         elseif command == "/play_song" then
             -- clear sound object if songUuid is nil
             if data.songUuid == nil then
@@ -470,7 +503,7 @@ elseif CLIENT then
     end)
 
     -- sound data interval
-    timer.create("sound_display", 0.2, 0, function()
+    timer.create("sound_display", 0.5, 0, function()
         -- validate sound object
         if not isValid(snd) then
             return
