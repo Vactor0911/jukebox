@@ -405,7 +405,7 @@ elseif CLIENT then
 
                     -- validate response body
                     if not jsonBody.success then
-                        printError("song request error..\n" .. jsonBody.message)
+                        printError("song request error..\n" .. jsonBody.error)
                         return
                     end
 
