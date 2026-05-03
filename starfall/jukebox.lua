@@ -410,7 +410,6 @@ elseif CLIENT then
                     end
 
                     local songUuid = jsonBody.data.song.uuid
-                    print(songUuid)
                     if string.len(songUuid) > 0 then
                         -- send music url to server
                         local title = jsonBody.data.song.title
@@ -421,6 +420,7 @@ elseif CLIENT then
                         data.title = title
                         data.uploader = uploader
                         sendData(data)
+                        print(title .. "  -  " .. uploader)
                     end
                 end,
                 function(error)
