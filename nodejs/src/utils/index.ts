@@ -5,12 +5,15 @@
  */
 export const extractYoutubeVideoId = (url: string): string | null => {
   // YouTube URL 패턴 검증
-  const youtubeRegex = /^https:\/\/www\.youtube\.com\/watch\?v=([\w-]+)/;
+  const youtubeRegex =
+    /^https:\/\/(?:www\.youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/;
   if (!youtubeRegex.test(url)) {
     return null;
   }
 
   // URL에서 video ID 추출
-  const { searchParams } = new URL(url);
-  return searchParams.get("v");
+  const parsedUrl = new URL(url);
+  return parsedUrl.hostname === "youtu.be"
+    ? parsedUrl.pathname.slice(1)
+    : parsedUrl.searchParams.get("v");
 };
